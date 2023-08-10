@@ -50,36 +50,33 @@ window.addEventListener('load', ()=>{
 
 
     //When the 'Create room" is button is clicked
-    document.getElementById('create-room').addEventListener('click', (e)=>{
+    document.getElementById('create-room').addEventListener('click', (e) => {
         e.preventDefault();
-
+    
         let roomName = document.querySelector('#room-name').value;
         let yourName = document.querySelector('#your-name').value;
-
-        if(roomName && yourName){
+    
+        if (roomName && yourName) {
             //remove error message, if any
             document.querySelector('#err-msg').innerHTML = "";
-
+    
             //save the user's name in sessionStorage
             sessionStorage.setItem('username', yourName);
-
-            //create room link
-            let roomLink = `${location.origin}?room=${roomName.trim().replace(' ', '_')}_${helpers.generateRandomString()}`;
-
+    
+            //create room link with a slash after location.origin
+            let roomLink = `${location.origin}/XMCA/conference-call-ratchet/?room=${roomName.trim().replace(' ', '_')}_${helpers.generateRandomString()}`;
+    
             //show message with link to room
-            document.querySelector('#room-created').innerHTML = `Room successfully created. Click <a href='${roomLink}'>here</a> to enter room. 
+            document.querySelector('#room-created').innerHTML = `Room successfully created. Click <a href='${roomLink}'>here</a> to enter the room. 
                 Share the room link with your partners.`;
-
+    
             //empty the values
             document.querySelector('#room-name').value = '';
             document.querySelector('#your-name').value = '';
-        }
-
-        else{
+        } else {
             document.querySelector('#err-msg').innerHTML = "All fields are required";
         }
-    });
-
+    });    
 
     //When the 'Enter room' button is clicked.
     document.getElementById('enter-room').addEventListener('click', (e)=>{

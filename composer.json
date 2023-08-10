@@ -1,11 +1,15 @@
 {
     "require": {
-        "cboden/ratchet": "^0.4.2"
+        "cboden/ratchet": "^0.4.4"
     },
-
     "autoload": {
         "psr-4": {
-            "Amir\\": "ws/bin/amir/"
+            "Alok\\": "ws/bin/Alok"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Alok\\Tests\\": "tests/"
         }
     }
 }

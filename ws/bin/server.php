@@ -1,26 +1,26 @@
 <?php
 
-/**
- * Description of server
- *
- * @author Amir <amirsanni@gmail.com>
- * @date 23-Dec-2016
- */
-
 require 'vendor/autoload.php';
 
-use Amir\Comm;
+use Alok\Comm;
 use Ratchet\App;
+use Ratchet\Http\HttpServer;
+use Ratchet\WebSocket\WsServer;
 
-//set an array of origins allowed to connect to this server
-$allowed_origins = ['localhost', '127.0.0.1'];
+header("Access-Control-Allow-Origin: *"); // Replace * with the specific origin you want to allow (e.g., http://example.com)
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Credentials: true");
 
-// Run the server application through the WebSocket protocol on port 8080
-$app = new App('localhost', 8080, '0.0.0.0');//App(hostname, port, 'whoCanConnectIP', '')
+$allowed_origins = ['*'];
 
-//create socket routes
-//route(uri, classInstance, arrOfAllowedOrigins)
-$app->route('/comm', new Comm, $allowed_origins);
-
-//run websocket
+$app = new App('localhost', 8080, '0.0.0.0');
+$app->route('/comm', 
+  new HttpServer(
+    new WsServer(
+      new Comm()
+    )
+  ), 
+  $allowed_origins);
 $app->run();
+?>

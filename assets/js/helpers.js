@@ -126,13 +126,27 @@ export default {
         //     ]
         // };
 
-        return fetch("/Server.php").then((res)=>{
-            if(res.ok){
-                return res.json();
-            }
+        // return fetch("/Server.php").then((res)=>{
+        //     if(res.ok){
+        //         return res.json();
+        //     }
 
-            throw new Error('Unable to process your request');
-        });
+        //     throw new Error('Unable to process your request');
+        // });
+
+        console.log("Inside getIceServer function");
+        return fetch("/XMCA/conference-call-ratchet/server.php")
+            .then((res) => {
+                if (res.ok) {
+                    return res.json();
+                }
+            
+                throw new Error('Unable to process your request');
+            })
+            .catch((error) => {
+                console.error("Error in getIceServer function:", error);
+                throw error;
+            });
     },
     
     

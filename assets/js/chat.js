@@ -1,24 +1,41 @@
-/**
- * @author Amir Sanni <amirsanni@gmail.com>
- * @date 6th January, 2020
- */
 import h from './helpers.js';
+
+const iceServersUrl = '../../XMCA/conference-call-ratchet/getIceServers.php';
 
 const wsUrl = 'ws://localhost:8080';
 var servers = {
     iceServers: []
+};
+
+// Add a function to log WebSocket connection events
+function logWebSocketEvent(event, socket) {
+    console.log(`WebSocket ${event.type} - ReadyState: ${socket.readyState}`);
 }
 
-window.addEventListener('load', ()=>{
+// Declare the socket variable outside of the event listener
+let socket;
+
+window.addEventListener('load', () => {
     const room = h.getQString(location.href, 'room');
     const username = sessionStorage.getItem('username');
     
-    h.getIceServer().then((ice)=>{
-        servers.iceServers = [ice];
-        console.log(ice);
-    }).catch((e)=>{
-        console.error(e);
-    });
+    // Create a WebSocket connection
+    socket = new WebSocket(`${wsUrl}/comm`);
+
+    // Fetch ICE servers from the PHP script
+    fetch(iceServersUrl)
+        .then(response => response.json())
+        .then(data => {
+            servers.iceServers = data;
+            // Use the ICE servers in your WebRTC setup or other parts of the code
+            // For example, create a new RTCPeerConnection and set the iceServers:
+            // const peerConnection = new RTCPeerConnection(servers);
+        })
+        .catch(error => console.error('Error fetching ICE servers:', error));
+
+    servers.iceServers = [servers.iceServers];
+    console.log("Received ICE servers:", servers.iceServers);
+
 
     if(!room){
         document.querySelector('#room-create').attributes.removeNamedItem('hidden');
@@ -38,7 +55,7 @@ window.addEventListener('load', ()=>{
         var socketId = username+'__'+h.generateRandomString();
         var pc = [];
 
-        let socket = new WebSocket(`${wsUrl}/comm`);
+        // let socket = new WebSocket(`${wsUrl}/comm`);
         
         var myStream =  '';
         var screen = '';
@@ -48,8 +65,9 @@ window.addEventListener('load', ()=>{
         //Get user video by default
         getAndSetUserStream();
 
-        socket.onopen = ()=>{
+        socket.onopen = (event)=>{
             //subscribe to room
+            logWebSocketEvent(event, socket);
             socket.send(JSON.stringify({
                 action: 'subscribe',
                 room: room,
@@ -58,98 +76,113 @@ window.addEventListener('load', ()=>{
         };
 
 
-        socket.onerror = ()=>{
-            console.error("Unable to connect to the chat server!");
+        socket.onerror = (event)=>{
+            console.error('WebSocket Error:', event.error);
+            logWebSocketEvent(event, socket);
         };
 
+        socket.onclose = (event) => {
+            console.log('WebSocket Closed:', event.code, event.reason);
+            logWebSocketEvent(event, socket);
+        };
 
         socket.onmessage = async (e)=>{
-            var data = JSON.parse(e.data);
+            try {
+                var data = JSON.parse(e.data);
             
-            if(data.room && (data.room == room)){
-                switch(data.action){
-                    case 'newSub':
-                        socket.send(JSON.stringify({
-                            action: 'newUserStart',
-                            to:data.socketId, 
-                            sender:socketId,
-                            room: room
-                        }));
+                if(data.room && (data.room == room)){
+                    switch(data.action){
+                        case 'newSub':
+                            socket.send(JSON.stringify({
+                                action: 'newUserStart',
+                                to:data.socketId, 
+                                sender:socketId,
+                                room: room
+                            }));
 
-                        pc.push(data.socketId);
-                        init(true, data.socketId);
+                            pc.push(data.socketId);
+                            init(true, data.socketId);
 
-                    break;
+                        break;
 
-                    case 'newUserStart':
-                        if(data.to == socketId){
-                            pc.push(data.sender);
-                            init(false, data.sender);
-                        }
-                    break;
+                        case 'newUserStart':
+                            if(data.to == socketId){
+                                pc.push(data.sender);
+                                init(false, data.sender);
+                            }
+                        break;
 
-                    case 'ice candidates':
-                        //message is iceCandidate
-                        if(data.to == socketId){
-                            data.candidate ? await pc[data.sender].addIceCandidate(new RTCIceCandidate(data.candidate)) : '';
-                        }
-                        
-                    break;
+                        case 'ice candidates':
+                            //message is iceCandidate
+                            if(data.to == socketId){
+                                data.candidate ? await pc[data.sender].addIceCandidate(new RTCIceCandidate(data.candidate)) : '';
+                            }
 
-                    case 'sdp':
-                        //message is signal description
-                        console.log(data.description.type);
-                        if(data.to == socketId){
-                            if(data.description.type === 'offer'){
-                                data.description ? await pc[data.sender].setRemoteDescription(new RTCSessionDescription(data.description)) : '';
-            
-                                h.getUserFullMedia().then(async(stream)=>{
-                                    if(!document.getElementById('local').srcObject){
-                                        h.setLocalStream(stream);
-                                    }
-            
-                                    //save my stream
-                                    myStream = stream;
-            
-                                    stream.getTracks().forEach((track)=>{
-                                        pc[data.sender].addTrack(track, stream);
-                                    });
-            
-                                    let answer = await pc[data.sender].createAnswer();
+                        break;
+
+                        case 'sdp':
+                            //message is signal description
+                            console.log(data.description.type);
+                            if(data.to == socketId){
+                                if(data.description.type === 'offer'){
+                                    data.description ? await pc[data.sender].setRemoteDescription(new RTCSessionDescription(data.description)) : '';
+                                
+                                    h.getUserFullMedia().then(async(stream)=>{
+                                        if(!document.getElementById('local').srcObject){
+                                            h.setLocalStream(stream);
+                                        }
                                     
-                                    await pc[data.sender].setLocalDescription(answer);
-            
-                                    socket.send(JSON.stringify({
-                                        action: 'sdp',
-                                        description:pc[data.sender].localDescription, 
-                                        to:data.sender, 
-                                        sender:socketId,
-                                        room: room
-                                    }));
-                                }).catch((e)=>{
-                                    console.error(e);
-                                });
+                                        //save my stream
+                                        myStream = stream;
+                                    
+                                        stream.getTracks().forEach((track)=>{
+                                            pc[data.sender].addTrack(track, stream);
+                                        });
+                                    
+                                        let answer = await pc[data.sender].createAnswer();
+
+                                        await pc[data.sender].setLocalDescription(answer);
+                                    
+                                        socket.send(JSON.stringify({
+                                            action: 'sdp',
+                                            description:pc[data.sender].localDescription, 
+                                            to:data.sender, 
+                                            sender:socketId,
+                                            room: room
+                                        }));
+                                    }).catch((e)=>{
+                                        console.error(e);
+                                    });
+                                }
+                            
+                                else if(data.description.type === 'answer'){
+                                    await pc[data.sender].setRemoteDescription(new RTCSessionDescription(data.description));
+                                }
                             }
-            
-                            else if(data.description.type === 'answer'){
-                                await pc[data.sender].setRemoteDescription(new RTCSessionDescription(data.description));
-                            }
-                        }
-                        
-                    break;
 
-                    case 'chat':
-                        //it is a text chat
-                        h.addChat(data, 'remote');
-                        
-                    break;
+                        break;
+
+                        case 'chat':
+                            // It is a text chat
+                            h.addChat(data, 'remote');
+
+                            // Display the received chat message on the UI
+                            const receivedMessage = document.createElement('div');
+                            receivedMessage.textContent = data.msg;
+                            receivedMessage.className = 'received-message';
+                            document.getElementById('chat-messages').appendChild(receivedMessage);
+
+                        break;
 
 
-                    case 'imOffline':
-                        //remove video
-                        h.closeVideo(data.sender);
-                    break;
+                        case 'imOffline':
+                            //remove video
+                            h.closeVideo(data.sender);
+                        break;
+                    }
                 }
+            } catch (error) {
+                console.error('WebSocket Message Error:', error);
             }
         };
 
@@ -180,6 +213,29 @@ window.addEventListener('load', ()=>{
 
             //add localchat
             h.addChat(data, 'local');
+
+            // Check if the WebSocket connection is in the OPEN state
+            // if (socket.readyState === WebSocket.OPEN) {
+            //     let data = {
+            //         room: room,
+            //         msg: msg,
+            //         sender: username,
+            //         action: 'chat'
+            //     };
+            
+            //     // Emit chat message
+            //     socket.send(JSON.stringify(data));
+            
+            //     // Add local chat
+            //     h.addChat(data, 'local');
+            // } else if (socket.readyState === WebSocket.CONNECTING) {
+            //     // WebSocket is still connecting, wait and retry sending the message
+            //     setTimeout(() => {
+            //         sendMsg(msg);
+            //     }, 1000); // You can adjust the delay as needed
+            // } else {
+            //     console.error('WebSocket connection is not open.');
+            // }
         }
 
 
